@@ -1,108 +1,33 @@
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
-
+const fs = require('fs');
 const app = express();
 const port = process.env.PORT || 8080;
 
-
 function buscarPorCampo(campo, valor, callback) {
-    const db = new sqlite3.Database('cadsus.db');
-    const query = `SELECT * FROM cadsus WHERE ${campo} = ?`;
-    
-    db.get(query, [valor], (err, row) => {
-        db.close();
+    fs.readFile('cadsus.json', 'utf8', (err, data) => {
         if (err) {
             callback(err, null);
             return;
         }
-        callback(null, row);
+
+        const db = JSON.parse(data);  // Parse o conteúdo JSON
+        const resultado = db.find(item => item[campo] === valor);  // Encontrar o valor pelo campo especificado
+
+        callback(null, resultado);
     });
 }
-
-
-function buscarRegistros(query, values, callback) {
-    const db = new sqlite3.Database('cadsus.db');
-
-    db.all(query, values, (err, rows) => {
-        db.close();
-        if (err) {
-            callback(err, null);
-            return;
-        }
-        callback(null, rows);
-    });
-}
-
-
-
-function formatarResultadoNextel(row) {
-    return {
-        cpf: row.cpf,
-        nome: row.nome,
-        tipo: row.tipo,
-        logradouro: row.logr,
-        numero: row.num,
-        complemento: row.complemento,
-        bairro: row.bairro,
-        cidade: row.cidade,
-        uf: row.uf,
-        cep: row.cep,
-        ddd: row.ddd,
-        telefone: row.tel,
-        inst: row.inst,
-        operadora: row.operadora
-    };
-}
-
-
-function formatarResultadoClaro(row) {
-    return {
-        cpf: row.cpf,
-        nome: row.nome,
-        pessoa: row.pessoa,
-        ddd: row.ddd,
-        telefone: row.fone,
-        inst: row.inst
-    };
-}
-
-
-
 
 function formatarResultado(row) {
     return {
-        cpf: row.cpf,
-        cns: row.cns,
-        nome: row.nome,
-        nascimento: row.nascimento,
-        sexo: row.sexo,
-        raca_cor: row.raca_cor,
-        falecido: row.falecido,
-        data_falecimento: row.data_falecimento,
-        mae: row.mae,
-        pai: row.pai,
-        celular: row.celular,
-        telefone: row.telefone,
-        contato: row.contato,
-        email: row.email,
-        endereco: {
-            rua: row.rua,
-            numero: row.numero,
-            complemento: row.complemento,
-            bairro: row.bairro,
-            cidade: row.cidade,
-            estado: row.estado,
-            cep: row.cep
-        },
-        rg: {
-            numero: row.rg,
-            orgao_emissor: row.rg_orgao_emissor,
-            data_emissao: row.rg_data_emissao
-        },
-        nis: row.nis
+        cpf: row.num_doc,
+        nome: row.nom_pessoa,
+        tipo: row.ind_tipo_pessoa,
+        origem: row.dsc_origem,
+        data_insercao: row.dat_insercao,
+        estado: row.sgl_estado,
+        valido: row.ind_valido
     };
 }
-
 
 app.get('/api/buscar-por-cpf', (req, res) => {
     const cpf = req.query.cpf;
@@ -110,7 +35,7 @@ app.get('/api/buscar-por-cpf', (req, res) => {
         return res.status(400).json({ message: 'CPF não especificado' });
     }
 
-    buscarPorCampo('cpf', cpf, (err, row) => {
+    buscarPorCampo('num_doc', cpf, (err, row) => {
         if (err) {
             console.error(err);
             return res.status(500).json({ message: 'Erro ao buscar CPF' });
@@ -125,14 +50,13 @@ app.get('/api/buscar-por-cpf', (req, res) => {
     });
 });
 
-
 app.get('/api/buscar-por-nome', (req, res) => {
     const nome = req.query.nome;
     if (!nome) {
         return res.status(400).json({ message: 'Nome não especificado' });
     }
 
-    buscarPorCampo('nome', nome, (err, row) => {
+    buscarPorCampo('nom_pessoa', nome, (err, row) => {
         if (err) {
             console.error(err);
             return res.status(500).json({ message: 'Erro ao buscar nome' });
@@ -146,7 +70,6 @@ app.get('/api/buscar-por-nome', (req, res) => {
         }
     });
 });
-
 
 app.get('/api/buscar-por-celular', (req, res) => {
     const celular = req.query.celular;
@@ -169,7 +92,6 @@ app.get('/api/buscar-por-celular', (req, res) => {
     });
 });
 
-
 app.get('/api/buscar-por-telefone', (req, res) => {
     const telefone = req.query.telefone;
     if (!telefone) {
@@ -191,7 +113,6 @@ app.get('/api/buscar-por-telefone', (req, res) => {
     });
 });
 
-
 app.get('/api/buscar-por-cns', (req, res) => {
     const cns = req.query.cns;
     if (!cns) {
@@ -212,6 +133,7 @@ app.get('/api/buscar-por-cns', (req, res) => {
         }
     });
 });
+
 app.get('/api/buscar-cpf-todas', (req, res) => {
     const cpf = req.query.cpf;
     if (!cpf) {
@@ -220,8 +142,7 @@ app.get('/api/buscar-cpf-todas', (req, res) => {
 
     const resultados = [];
 
-
-    buscarPorCampo('cpf', cpf, (err, cadsusRow) => {
+    buscarPorCampo('num_doc', cpf, (err, cadsusRow) => {
         if (err) {
             console.error(err);
             return res.status(500).json({ message: 'Erro ao buscar CPF na tabela cadsus' });
@@ -231,36 +152,10 @@ app.get('/api/buscar-cpf-todas', (req, res) => {
             resultados.push({ tabela: 'cadsus', registros: [formatarResultado(cadsusRow)] });
         }
 
-
-        const queryNextel = "SELECT * FROM nextel WHERE cpf = ?";
-        buscarRegistros(queryNextel, [cpf], (err, nextelRows) => {
-            if (err) {
-                console.error(err);
-                return res.status(500).json({ message: 'Erro ao buscar CPF na tabela nextel' });
-            }
-
-            if (nextelRows.length > 0) {
-                resultados.push({ tabela: 'nextel', registros: nextelRows.map(formatarResultadoNextel) });
-            }
-
-            const queryClaro = "SELECT * FROM CLARO_CPF WHERE cpf = ?";
-            buscarRegistros(queryClaro, [cpf], (err, claroRows) => {
-                if (err) {
-                    console.error(err);
-                    return res.status(500).json({ message: 'Erro ao buscar CPF na tabela CLARO_CPF' });
-                }
-
-                if (claroRows.length > 0) {
-                    resultados.push({ tabela: 'CLARO_CPF', registros: claroRows.map(formatarResultadoClaro) });
-                }
-
-                return res.status(200).json({ resultados });
-            });
-        });
+        return res.status(200).json({ resultados });
     });
 });
 
 app.listen(port, () => {
     console.log(`Servidor rodando na porta ${port}`);
 });
-
